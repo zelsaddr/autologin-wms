@@ -11,7 +11,7 @@ Script untuk login otomatis ke WMS Lite pada router OpenWRT.
   - grep
   - curl
   - sed
-  - dig (opsional, untuk pengecekan DNS yang lebih baik)
+  - dig 
 
 ## Cara Instalasi
 
@@ -20,7 +20,7 @@ Script untuk login otomatis ke WMS Lite pada router OpenWRT.
 ```bash
 opkg update
 opkg install grep curl
-opkg install bind-dig  # opsional
+opkg install bind-dig 
 ```
 
 2. Download dan pindahkan script:
