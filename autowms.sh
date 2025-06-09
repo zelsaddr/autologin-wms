@@ -8,7 +8,7 @@
 # 1. Install required packages:
 #    opkg update
 #    opkg install grep curl
-#    opkg install bind-dig (optional, for better DNS check)
+#    opkg install bind-dig 
 #
 # 2. Make script executable:
 #    chmod +x autowms.sh
@@ -20,7 +20,7 @@
 #   - Latest grep (update via opkg install grep or via gui)
 #   - sed
 #   - curl
-#   - dig (optional, for DNS check)
+#   - dig
 
 SETUSERNAME="maklogaming" # Your WMS-lite username
 SETPASSWORD="MakloGaming312" # Your WMS-lite password
