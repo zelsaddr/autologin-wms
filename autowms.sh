@@ -8,7 +8,8 @@
 # 1. Install required packages:
 #    opkg update
 #    opkg install grep curl
-#    opkg install bind-dig 
+#    opkg install bind-dig (optional, for better DNS check)
+#    opkg install macchanger (for MAC address changing)
 #
 # 2. Make script executable:
 #    chmod +x autowms.sh
@@ -20,7 +21,8 @@
 #   - Latest grep (update via opkg install grep or via gui)
 #   - sed
 #   - curl
-#   - dig
+#   - dig (optional, for DNS check)
+#   - macchanger (for MAC address changing)
 
 SETUSERNAME="maklogaming" # Your WMS-lite username
 SETPASSWORD="MakloGaming312" # Your WMS-lite password
@@ -31,6 +33,54 @@ PING_TIMEOUT=3
 PING_COUNT=1
 PING_TARGETS="1.1.1.1 8.8.8.8 9.9.9.9"
 HTTP_CHECK_URL="http://www.google.com"
+
+get_mac() {
+    ifconfig $SETIFACE | grep -o -E '([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}'
+}
+
+get_ip() {
+    ifconfig $SETIFACE | grep -o -E 'inet addr:[0-9.]+' | cut -d: -f2
+}
+
+change_mac() {
+    # Log current MAC and IP before change
+    local old_mac=$(get_mac)
+    local old_ip=$(get_ip)
+    logger "[$(date)] Current MAC: $old_mac, IP: $old_ip"
+    
+    # Bring interface down
+    ifconfig $SETIFACE down
+    
+    # Change MAC address using macchanger
+    if command -v macchanger >/dev/null 2>&1; then
+        macchanger -r $SETIFACE >/dev/null 2>&1
+        local new_mac=$(get_mac)
+        logger "[$(date)] Changed MAC address from $old_mac to $new_mac"
+    else
+        logger "[$(date)] macchanger not installed. Please install it using: opkg install macchanger"
+        return 1
+    fi
+    
+    # Bring interface back up
+    ifconfig $SETIFACE up
+    
+    # Wait for interface to get IP address
+    local max_attempts=10
+    local attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+        if ifconfig $SETIFACE | grep -q "inet addr"; then
+            local new_ip=$(get_ip)
+            logger "[$(date)] Interface $SETIFACE got new IP: $new_ip"
+            sleep 2  # Additional wait to ensure network is stable
+            return 0
+        fi
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+    
+    logger "[$(date)] Failed to get IP address after MAC change"
+    return 1
+}
 
 check_ping() {
     local success=0
@@ -72,17 +122,30 @@ check_connection() {
     local ping_result=$(check_ping)
     local dns_result=$(check_dns)
     local http_result=$(check_http)
+    local current_mac=$(get_mac)
+    local current_ip=$(get_ip)
     
-    # Log detailed status
-    # logger "[$(date)] Connection Check - Ping: $ping_result, DNS: $dns_result, HTTP: $http_result"
+    # Log detailed status with MAC and IP
+    # logger "[$(date)] Connection Check - MAC: $current_mac, IP: $current_ip, Ping: $ping_result, DNS: $dns_result, HTTP: $http_result"
     
     # Consider connection down if any two checks fail
     if [ $ping_result -eq 0 ] && [ $dns_result -eq 0 ]; then
         logger "[$(date)] Tidak ada koneksi internet - Mencoba login"
         logger "[$(date)] $(do_logout)"
         sleep 1
-        logger "[$(date)] $(do_login)"
-        logger "[$(date)] Connection Check - Ping: $ping_result, DNS: $dns_result, HTTP: $http_result"
+        
+        # Change MAC address before login attempt
+        if change_mac; then
+            # Wait for network to stabilize
+            sleep 5
+            logger "[$(date)] $(do_login)"
+        else
+            logger "[$(date)] Failed to change MAC address, skipping login attempt"
+        fi
+        
+        current_mac=$(get_mac)
+        current_ip=$(get_ip)
+        logger "[$(date)] After login attempt - MAC: $current_mac, IP: $current_ip"
         echo "0"
     else
         echo "1"
